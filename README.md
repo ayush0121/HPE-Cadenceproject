@@ -1,0 +1,1 @@
+Implemented priority based Queue as part of Cadence workflow activities to efficiently utilize system resources based on priority determined by the nature of request , availability of resources and dependent activities.

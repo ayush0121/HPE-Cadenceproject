@@ -1,4 +1,6 @@
 // app/worker/main.go
+//docker run --network=host --rm ubercadence/cli:master --domain simple-domain workflow start --tl Service_process --wt github.com/nndd91/cadence-api-example/app/worker/workflows.customerWorkflow --et 999 --dt 60 -i "1"
+
 package main
 
 import (
@@ -23,7 +25,6 @@ func startWorkers(h *cadenceAdapter.CadenceAdapter, taskList string) {
 	// Configure worker options.
 	workerOptions := worker.Options{
 		MetricsScope: h.Scope,
-		Logger:       h.Logger,
 	}
 
 	cadenceWorker := worker.New(h.ServiceClient, h.Config.Domain, taskList, workerOptions)

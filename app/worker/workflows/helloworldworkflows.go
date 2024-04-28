@@ -4,6 +4,7 @@ package workflows
 import (
 	"context"
 	"errors"
+
 	"fmt"
 	"time"
 
@@ -44,6 +45,13 @@ func init() {
 
 }
 
+const SignalName = "taskCompleted"
+
+type TaskCompletedSignal struct {
+	WorkflowID string
+	TaskID     int
+}
+
 // Task_List Name
 const TaskListName = "Service_process"
 
@@ -62,11 +70,13 @@ func customerWorkflow(ctx workflow.Context, id int) error {
 	logger.Info("Customer workflow started")
 	var Result string
 
+	// Start activities
 	err := workflow.ExecuteActivity(ctx, Activity1, wid, id).Get(ctx, &Result)
 	if err != nil {
 		logger.Error("Activity failed.", zap.Error(err))
 		return err
 	}
+
 	err2 := workflow.ExecuteActivity(ctx, Activity2, id).Get(ctx, &Result)
 	if err2 != nil {
 		logger.Error("Activity failed.", zap.Error(err2))
@@ -80,6 +90,26 @@ func customerWorkflow(ctx workflow.Context, id int) error {
 	}
 
 	logger.Info("Workflow completed.", zap.String("Result", Result))
+
+	return nil
+}
+func signalHandler(ctx workflow.Context) error {
+	// Listen for signals
+	signalChan := workflow.GetSignalChannel(ctx, SignalName)
+
+	for {
+		var signal TaskCompletedSignal
+		// Wait for signal
+		if !signalChan.Receive(ctx, &signal) {
+			// Channel closed
+			return nil
+		}
+
+		// Handle the received signal
+		// Here you can implement logic to process the signal and update workflow state
+		logger := workflow.GetLogger(ctx)
+		logger.Info("Received signal", zap.Any("signal", signal))
+	}
 
 	return nil
 }
@@ -177,4 +207,12 @@ func Activity3_fn(wid string, q2 *Queue.Queue2) (string, error) {
 	}
 	return "Cant complete", errors.New("error")
 
+}
+func init() {
+	// Registering workflow, activity, and signal handler
+	workflow.Register(customerWorkflow)
+	workflow.Register(signalHandler)
+	activity.Register(Activity1)
+	activity.Register(Activity3)
+	activity.Register(Activity2)
 }

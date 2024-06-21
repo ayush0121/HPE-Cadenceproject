@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"
+        rel="stylesheet">
+    <title>Queue Status</title>
+    <style>
+        body {
+            font-family: Montserrat, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 80%;
+            margin: 20px auto;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #ddd;
+        }
+
+        .navbar {
+            background-color: #333;
+            margin-top: 10px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            border-radius: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            width: 60%;
+            color: white;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            z-index: 1;
+        }
+
+        .navbar a:hover {
+            background-color: #555;
+        }
+
+        .navbar a.active {
+            background-color: #4CAF50;
+        }
+
+        .navbar h1 {
+            flex-grow: 1;
+            text-align: center;
+            margin: 0;
+            margin-left: -90px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="navbar">
+        <a id="home-link" href="http://localhost:8080/form.html">Home</a>
+        <h1>QUEUE STATUS</h1>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Work ID</th>
+                <th>Request ID</th>
+                <th>Priority</th>
+                <th>Updated Priority</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ if .Customers }}
+            {{ range .Customers }}
+            <tr>
+                <td>{{ .Wid }}</td>
+                <td>{{ .Rid }}</td>
+                <td>{{ isPrimePriority .Priority }}</td>
+                <td>{{ flagStatus .Flag }}</td>
+            </tr>
+            {{ end }}
+            {{ else }}
+            <tr>
+                <td colspan="6">No customers in the queue.</td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</body>
+
+</html>

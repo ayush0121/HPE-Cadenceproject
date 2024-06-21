@@ -1,89 +1,179 @@
 package Queue
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
+	"time"
 )
 
-type customer struct {
-	wid      string
-	priority int
+type Customer struct {
+	Wid       string
+	Rid       string
+	ctx       context.Context
+	Priority  int32
+	timestamp time.Time
+	leno      int
+	Flag      int
 }
 
-func New(wid string, priority int) customer {
-	return customer{
-		wid:      wid,
-		priority: priority,
+func New(wid string, rid string, ctx context.Context, priority int32, timestamp time.Time, leno int, flag int) Customer {
+	return Customer{
+		Wid:       wid,
+		Rid:       rid,
+		ctx:       ctx,
+		Priority:  priority,
+		timestamp: timestamp,
+		leno:      leno,
+		Flag:      flag,
 	}
 }
 
-type ByPriority []customer
-
-func (a ByPriority) Len() int           { return len(a) }
-func (a ByPriority) Less(i, j int) bool { return a[i].priority < a[j].priority }
-func (a ByPriority) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-func (q *Queue) SortCustomers() {
-	sort.Sort(ByPriority(q.customers))
+type ByPriority struct {
+	customers []Customer
+	offset    int
 }
 
-type Queue2 struct {
-	items []string
+func (a ByPriority) Len() int { return len(a.customers) - a.offset }
+func (a ByPriority) Less(i, j int) bool {
+	return a.customers[a.offset+i].Priority < a.customers[a.offset+j].Priority
 }
-
-func (q *Queue2) Enqueue2(item string) {
-	q.items = append(q.items, item)
-}
-
-func (q *Queue2) SearchAndRemove(item string) bool {
-	for i, v := range q.items {
-		if v == item {
-			// Remove the item from the slice
-			q.items = append(q.items[:i], q.items[i+1:]...)
-			return true
-		}
-	}
-	return false
+func (a ByPriority) Swap(i, j int) {
+	a.customers[a.offset+i], a.customers[a.offset+j] = a.customers[a.offset+j], a.customers[a.offset+i]
 }
 
 type Queue struct {
-	Size      int
-	customers []customer
+	Size          int
+	Customers     []Customer
+	overdueOffset int
+	mutex         sync.Mutex
 }
 
-func (q *Queue) Enqueue(c customer) (bool, error) {
-	if q.Size > 0 && len(q.customers) >= q.Size {
+func (q *Queue) Enqueue(c Customer) (bool, error) {
+	q.mutex.Lock() // Lock for concurrency safety
+
+	defer q.mutex.Unlock()
+	if q.Size > 0 && len(q.Customers) >= q.Size {
+		q.mutex.Unlock()
 		return true, errors.New("Queue is full") // Queue is full
 	}
-	q.customers = append(q.customers, c)
+
+	// Check special cases for priority and flag
+	if c.Priority == 4 || c.Priority == 5 || c.Priority == 6 {
+		// Insert at the end
+		q.Customers = append(q.Customers, c)
+	} else if c.Priority == 1 || c.Priority == 2 || c.Priority == 3 {
+		// Insert based on flag condition, searching from behind
+		insertIndex := len(q.Customers)
+		for insertIndex > 0 && q.Customers[insertIndex-1].Flag != 1 {
+			insertIndex--
+		}
+		q.Customers = append(q.Customers[:insertIndex], append([]Customer{c}, q.Customers[insertIndex:]...)...)
+	}
+
+	fmt.Printf("wid:%s pid: %d pos:%d time:%s\n", c.Wid, c.Priority, c.leno, c.timestamp)
+	fmt.Print("Queue Sorted:")
+	for i := 0; i < len(q.Customers); i++ {
+		fmt.Print(q.Customers[i].Priority, " ")
+
+	}
+	fmt.Println()
 	return false, nil
 }
 
-func (q *Queue) Dequeue() (string, error) {
-	if len(q.customers) == 0 {
-		return " ", errors.New("Queue is empty")
+func (q *Queue) Dequeue() (string, string, context.Context, int32, time.Time, error, int) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	// Lock for concurrency safety
+
+	if len(q.Customers) == 0 {
+		return " ", " ", nil, 0, time.Time{}, errors.New("Queue is empty"), 0
 	}
-	c := q.customers[0]
-	q.customers = q.customers[1:]
-	return c.wid, nil
+	c := q.Customers[0]
+	q.Customers = q.Customers[1:]
+	if q.overdueOffset > 0 && (c.Priority == 4 || c.Priority == 5 || c.Priority == 6) {
+		q.overdueOffset--
+	}
+
+	return c.Wid, c.Rid, c.ctx, c.Priority, c.timestamp, nil, c.Flag
 }
 
 func (q *Queue) GetLength() int {
-	return len(q.customers)
+	q.mutex.Lock() // Lock for concurrency safety
+	defer q.mutex.Unlock()
+
+	return len(q.Customers)
 }
 
 func (q *Queue) Display() {
-	if len(q.customers) == 0 {
+	q.mutex.Lock() // Lock for concurrency safety
+	defer q.mutex.Unlock()
+	if len(q.Customers) == 0 {
 		fmt.Println("Queue is empty")
 		return
 	}
-	fmt.Println("Customers in the Queue:")
-	for _, c := range q.customers {
-		fmt.Printf("WID: %s, Priority: %d\n", c.wid, c.priority)
+	//	fmt.Println("Customers in the Queue:")
+	for _, c := range q.Customers {
+		fmt.Println(c.Priority)
 	}
+	fmt.Println()
 }
 
 func (q *Queue) IsEmpty() bool {
-	return len(q.customers) == 0
+	q.mutex.Lock() // Lock for concurrency safety
+	defer q.mutex.Unlock()
+	return len(q.Customers) == 0
+}
+
+func (q *Queue) SortCustomers() {
+	q.mutex.Lock() // Lock for concurrency safety
+	defer q.mutex.Unlock()
+
+	sort.Sort(ByPriority{q.Customers, q.overdueOffset})
+}
+
+func (q *Queue) MoveToFrontIfOverdue(id int32) {
+	for {
+		time.Sleep(time.Millisecond * 1)
+
+		q.mutex.Lock()
+
+		for i := 0; i < len(q.Customers); i++ {
+			if q.Customers[i].Flag == 0 && time.Since(q.Customers[i].timestamp) > 19*time.Second {
+				// Extract the overdue customer
+				q.Customers[i].Flag = 1
+				overdueCustomer := q.Customers[i]
+				overdueCustomer.Flag = 1
+
+				// Find the insertion position
+				insertIndex := -1
+				for j := 0; j < i; j++ {
+					if q.Customers[j].Priority == 1 && q.Customers[j].timestamp.After(overdueCustomer.timestamp) {
+						insertIndex = j
+						break
+					}
+				}
+
+				// Only move the customer if a valid insertion index was found
+				if insertIndex != -1 {
+					// Remove the overdue customer from the current position
+					q.Customers = append(q.Customers[:i], q.Customers[i+1:]...)
+
+					// Insert the overdue customer at the found position
+					q.Customers = append(q.Customers[:insertIndex], append([]Customer{overdueCustomer}, q.Customers[insertIndex:]...)...)
+					fmt.Print("Current Queue :")
+					for _, c := range q.Customers {
+						fmt.Print(c.Priority, " ")
+					}
+					fmt.Println()
+
+				}
+
+			}
+		}
+
+		q.mutex.Unlock()
+	}
 }

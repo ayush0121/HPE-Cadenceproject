@@ -1,3 +1,4 @@
+// app/adapters/cadenceadapter/factory.go
 package cadenceAdapter
 
 import (
@@ -92,7 +93,6 @@ func (b *WorkflowClientBuilder) build() error {
 	b.dispatcher = yarpc.NewDispatcher(yarpc.Config{
 		Name: _cadenceClientName,
 		Outbounds: yarpc.Outbounds{
-
 			_cadenceFrontendService: {Unary: ch.NewSingleOutbound(b.hostPort)},
 		},
 	})
